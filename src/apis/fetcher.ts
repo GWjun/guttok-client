@@ -1,3 +1,5 @@
+import APIError from '#apis/APIError'
+
 interface FetchOptions extends RequestInit {
   timeout?: number
   retries?: number
@@ -10,7 +12,7 @@ const DEFAULT_RETRIES = 1
 const DEFAULT_RETRY_DELAY = 500 // 0.5 second
 
 class Fetcher {
-  private baseUrl: string
+  private readonly baseUrl: string
 
   constructor(baseUrl: string = '') {
     this.baseUrl = BASE_URL + baseUrl
@@ -44,7 +46,12 @@ class Fetcher {
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorResponse = await response.json()
+        throw new APIError({
+          message: errorResponse.message ?? '',
+          statusCode: response.status,
+          errorCode: errorResponse?.errorCode ?? 'BAD_REQUEST_ERROR',
+        })
       }
 
       return response.json() as Promise<T>
@@ -59,9 +66,15 @@ class Fetcher {
         })
       }
 
-      throw new Error(
-        `Request failed after ${DEFAULT_RETRIES} retries: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      )
+      if (error instanceof APIError) {
+        throw error
+      } else {
+        throw new APIError({
+          message: '잘못된 요청 입니다.',
+          statusCode: 400,
+          errorCode: 'BAD_REQUEST_ERROR',
+        })
+      }
     }
   }
 
